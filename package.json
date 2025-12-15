@@ -1,0 +1,39 @@
+{
+  "name": "express-api-generator",
+  "displayName": "Express API Generator",
+  "publisher": "farissujana16",
+  "description": "Generate ExpressJS API structure & endpoints automatically.",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/farissujana16/express-plugin.git"
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:extension.initProject",
+    "onCommand:extension.addEndpoint"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.initProject",
+        "title": "Express: Init Project"
+      },
+      {
+        "command": "extension.addEndpoint",
+        "title": "Express: Add Endpoint"
+      }
+    ]
+  },
+  "icon": "images/icon.png",
+  "devDependencies": {
+    "vsce": "^2.11.0"
+  },
+  "dependencies": {}
+}
