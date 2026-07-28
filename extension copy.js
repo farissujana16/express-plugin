@@ -80,10 +80,7 @@ function activate(context) {
           // 1. src/index.js
           const indexContent = `
 require('dotenv').config()
-
-const isProduction = process.env.NODE_ENV === "production";
-
-const PORT = process.env.PORT || (isProduction ? undefined : 5000);
+const PORT = process.env.PORT || 5000;
 const express = require('express');
 const cors = require('cors');
 const sequelize = require('./config/database');
@@ -135,19 +132,13 @@ app.use('/auth', authRoutes);
 // Tambahkan route otomatis di sini
 
 app.use((err, req, res, next) => {
-    res.status(500).json({
-    message: isProduction
-        ? "Internal Server Error"
-        : err.message,
-});
+    res.status(500).json({ message: err.message })
 })
 
 app.listen(PORT, () => {
     console.log(\`Server berjalan di port \${PORT}\`);
-    if (!isProduction) {
-      console.log(\`Swagger berjalan pada url http://localhost:\${PORT}/docs\`);
-      console.log(\`Scalar berjalan pada url http://localhost:\${PORT}/scalar\`);
-    }
+    console.log(\`Swagger berjalan pada url http://localhost:\${PORT}/docs\`);
+    console.log(\`Scalar berjalan pada url http://localhost:\${PORT}/scalar\`);
 });
 `;
           fs.writeFileSync(path.join(srcDir, "index.js"), indexContent.trim());
@@ -160,7 +151,7 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: process.env.APP_NAME+" API Documentation",
+      title: "Express API Documentation",
       version: "1.0.0",
     },
     components: {
@@ -188,13 +179,12 @@ module.exports = swaggerJSDoc(options);
 const { Sequelize } = require("sequelize");
 
 let sequelize;
-let isProduction = process.env.NODE_ENV === "production";
 
 if (process.env.DB_DIALECT === "sqlite") {
   sequelize = new Sequelize({
     dialect: "sqlite",
     storage: "./database.sqlite",
-    logging: isProduction ? false : console.log,
+    logging: false,
   });
 } else {
   sequelize = new Sequelize(
@@ -203,9 +193,8 @@ if (process.env.DB_DIALECT === "sqlite") {
     process.env.DB_PASSWORD,
     {
       host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
       dialect: process.env.DB_DIALECT,
-      logging: isProduction ? false : console.log,
+      logging: false,
     }
   );
 }
@@ -214,37 +203,6 @@ module.exports = sequelize;
 `;
           fs.writeFileSync(
             path.join(srcDir, "config", "database.js"),
-            dbContent.trim(),
-          );
-
-          //Config file
-          const dbContent = `
-require("dotenv").config(); // Memastikan variabel .env ter-load saat CLI berjalan
-
-const isProduction = process.env.NODE_ENV === "production";
-
-const dbConfig = {
-  username: process.env.DB_USERNAME,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  dialect: process.env.DB_DIALECT || "postgres",
-  logging: isProduction ? false : console.log,
-};
-
-if (process.env.DB_DIALECT === "sqlite") {
-  dbConfig.storage = "./database.sqlite";
-}
-
-module.exports = {
-  development: dbConfig,
-  test: dbConfig,
-  production: dbConfig,
-};
-`;
-          fs.writeFileSync(
-            path.join(srcDir, "config", "config.js"),
             dbContent.trim(),
           );
 
@@ -678,19 +636,16 @@ module.exports = {
           // 8. Files Pendukung
           fs.writeFileSync(
             path.join(folder, "env.example"),
-            `NODE_ENV=development \n
-APP_NAME=""
-APP_URL=http://localhost:5000
+            `APP_NAME=""
 APP_KEY=""\n
 PORT="5000"\n
 DB_DIALECT="${dbDialect}"
 DB_HOST="localhost"
-DB_PORT="3306"
 DB_USERNAME="root"
 DB_PASSWORD=""
 DB_NAME="mydb"\n
-ACCESS_TOKEN_SECRET="your_secret_token"
-REFRESH_TOKEN_SECRET="your_refresh_token"
+ACCESS_TOKEN_SECRET=""
+REFRESH_TOKEN_SECRET=""
 ACCESS_TOKEN_EXPIRED="15m"
 REFRESH_TOKEN_EXPIRED="7d"`,
           );
@@ -915,19 +870,19 @@ module.exports = {
       // --- Model ---
       fs.writeFileSync(
         modelPath,
-        `const { DataTypes } = require('sequelize');\nconst sequelize = require('../config/database');\nconst ${capName} = sequelize.define('${capName}', { name: { type: DataTypes.STRING }, description: { type: DataTypes.TEXT } }, { underscored: true, paranoid: true, defaultScope: { attributes: { exclude: ['createdAt', 'updatedAt', 'deletedAt'] } } });\nmodule.exports = ${capName};`,
+        `const { DataTypes } = require('sequelize');\nconst sequelize = require('../config/database');\nmodule.exports = sequelize.define('${capName}', { name: { type: DataTypes.STRING }, description: { type: DataTypes.TEXT } }, { underscored: true, paranoid: true });`,
       );
 
       // --- Service ---
       fs.writeFileSync(
         servicePath,
-        `const ${capName} = require('../models/${name}Models');\nasync function getAll() { return await ${capName}.findAll(); }\nasync function create(p) { return await ${capName}.create(p); }\nasync function update(id, p) { return await ${capName}.update(p, { where: { id } }); }\nasync function remove(id) { return await ${capName}.destroy({ where: { id } }); }\nasync function findId(id) { return await ${capName}.findOne({ where: { id } }); }\nmodule.exports = { getAll, create, update, remove, findId };`,
+        `const ${capName} = require('../models/${name}Models');\nmodule.exports = { getAll: async () => await ${capName}.findAll(), create: async (p) => await ${capName}.create(p), update: async (id, p) => await ${capName}.update(p, { where: { id } }), remove: async (id) => await ${capName}.destroy({ where: { id } }), findId: async (id) => await ${capName}.findOne({ where: { id } }) };`,
       );
 
       // --- Controller ---
       fs.writeFileSync(
         controllerPath,
-        `const ${name}Service = require('../service/${name}Service');\nasync function getAll(req, res) { try { const data = await ${name}Service.getAll(); res.json({ message: 'Success', data }); } catch (e) { res.status(500).json({ message: e.message }); } }\nasync function create(req, res) { try { const data = await ${name}Service.create(req.body); res.status(201).json({ message: 'Success', data }); } catch (e) { res.status(500).json({ message: e.message }); } }\nasync function update(req, res) { try { await ${name}Service.update(req.params.id, req.body); res.json({ message: 'Updated' }); } catch (e) { res.status(500).json({ message: e.message }); } }\nasync function remove(req, res) { try { await ${name}Service.remove(req.params.id); res.json({ message: 'Deleted' }); } catch (e) { res.status(500).json({ message: e.message }); } }\nasync function findId(req, res) { try { const data = await ${name}Service.findId(req.params.id); res.json({ message: 'Success', data }); } catch (e) { res.status(500).json({ message: e.message }); } }\nmodule.exports = { getAll, create, update, remove, findId };`,
+        `const ${name}Service = require('../service/${name}Service');\nmodule.exports = { getAll: async (req, res) => { try { const data = await ${name}Service.getAll(); res.json({ data }); } catch (e) { res.status(500).json({ message: e.message }); } }, create: async (req, res) => { try { const data = await ${name}Service.create(req.body); res.status(201).json({ data }); } catch (e) { res.status(500).json({ message: e.message }); } }, update: async (req, res) => { try { await ${name}Service.update(req.params.id, req.body); res.json({ message: 'Updated' }); } catch (e) { res.status(500).json({ message: e.message }); } }, remove: async (req, res) => { try { await ${name}Service.remove(req.params.id); res.json({ message: 'Deleted' }); } catch (e) { res.status(500).json({ message: e.message }); } }, findId: async (req, res) => { try { const data = await ${name}Service.findId(req.params.id); res.json({ data }); } catch (e) { res.status(500).json({ message: e.message }); } } };`,
       );
 
       // --- Validation ---
